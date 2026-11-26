@@ -80,8 +80,8 @@ input:focus,textarea:focus{outline:2px solid var(--wine);outline-offset:1px}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 // === ВСТАВЬТЕ СВОИ ДАННЫЕ ИЗ SUPABASE (Project Settings → API) ===
-const SUPABASE_URL="https://YOUR-PROJECT.supabase.co";
-const SUPABASE_ANON_KEY="YOUR-ANON-KEY";
+const SUPABASE_URL="https://wdcpieixyyaytkcotfgw.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_nxRSziTJBkFMxBJLXh2Sbg_2Z1YcYFS";
 // ================================================================
 const $=(t,a={},...k)=>{const e=document.createElement(t);for(const x in a){if(x==='class')e.className=a[x];else if(x.startsWith('on'))e.addEventListener(x.slice(2),a[x]);else if(x==='text')e.textContent=a[x];else e.setAttribute(x,a[x])}k.flat().forEach(c=>c!=null&&e.append(c));return e};
 let parts=[],draws=[],pending=null,cur=location.hash.slice(1)==='draw'?'draw':'participants';

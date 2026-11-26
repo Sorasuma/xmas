@@ -99,7 +99,7 @@ let loadErr=null,loading=false;
 function hint(e){
   const m=String((e&&e.message)||e||''),c=e&&e.code;
   if(c==='42P01'||c==='PGRST205'||/schema cache|does not exist/i.test(m))return 'Таблицы не найдены. Выполните файл supabase.sql в SQL Editor в Supabase.';
-  if(c==='42501'||/permission denied|row-level security|JWT/i.test(m))return 'Нет доступа к данным. Выйдите и войдите снова, а также проверьте, что правила доступа из supabase.sql созданы.';
+  if(c==='42501'||/permission denied|row-level security|JWT/i.test(m))return 'Нет доступа к данным. Выполните файл fix-access.sql в SQL Editor, затем выйдите и войдите снова. Технический текст: '+(c?c+' ':'')+m;
   if(/Invalid API key|apikey/i.test(m))return 'Неверный ключ SUPABASE_ANON_KEY. Скопируйте anon public key из Project Settings → API.';
   if(/Failed to fetch|NetworkError|Load failed/i.test(m))return 'Нет соединения с Supabase. Проверьте интернет и адрес SUPABASE_URL.';
   return 'Ошибка: '+m;

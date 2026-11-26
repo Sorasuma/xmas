@@ -77,7 +77,7 @@ input:focus,textarea:focus{outline:2px solid var(--wine);outline-offset:1px}
 <main id="app"></main>
 <nav class="glass" id="nav"><a href="#participants" data-p="participants">Участники</a><a href="#draw" data-p="draw">Жеребьёвка</a><a href="#" id="out">Выйти</a></nav>
 <dialog id="dlg"></dialog>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.js"></script>
 <script>
 // === ВСТАВЬТЕ СВОИ ДАННЫЕ ИЗ SUPABASE (Project Settings → API) ===
 const SUPABASE_URL="https://wdcpieixyyaytkcotfgw.supabase.co";
@@ -89,30 +89,51 @@ const rid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const byId=id=>parts.find(p=>p.id===id);
 function linkify(s){const f=document.createDocumentFragment();String(s||'').split(/(https:\/\/[^\s<]+)/g).forEach((t,i)=>{if(i%2){f.append($('a',{href:t,target:'_blank',rel:'noopener noreferrer',text:t.length>40?t.slice(0,38)+'…':t}))}else f.append(t)});return f}
 function stars(n){const w=$('span',{class:'stars','aria-label':n+' из 3'});w.append('★'.repeat(n));w.append($('i',{text:'★'.repeat(3-n)}));return w}
-function toast(t){const e=$('div',{class:'toast glass',text:t});document.body.append(e);setTimeout(()=>e.remove(),2200)}
+function toast(t,ms=2200){const e=$('div',{class:'toast glass',text:t});document.body.append(e);setTimeout(()=>e.remove(),ms)}
 const T=(t,ok)=>toast(t);
 
 // ---------- data ----------
 let sb=null,session=null;
 const configured=!SUPABASE_URL.includes('YOUR-PROJECT');
+let loadErr=null,loading=false;
+function hint(e){
+  const m=String((e&&e.message)||e||''),c=e&&e.code;
+  if(c==='42P01'||c==='PGRST205'||/schema cache|does not exist/i.test(m))return 'Таблицы не найдены. Выполните файл supabase.sql в SQL Editor в Supabase.';
+  if(c==='42501'||/permission denied|row-level security|JWT/i.test(m))return 'Нет доступа к данным. Выйдите и войдите снова, а также проверьте, что правила доступа из supabase.sql созданы.';
+  if(/Invalid API key|apikey/i.test(m))return 'Неверный ключ SUPABASE_ANON_KEY. Скопируйте anon public key из Project Settings → API.';
+  if(/Failed to fetch|NetworkError|Load failed/i.test(m))return 'Нет соединения с Supabase. Проверьте интернет и адрес SUPABASE_URL.';
+  return 'Ошибка: '+m;
+}
 async function load(){
-  const [p,d]=await Promise.all([sb.from('participants').select('*').order('created_at'),sb.from('draws').select('*').order('created_at',{ascending:false})]);
-  if(p.error||d.error){toast('Ошибка загрузки данных');return}
-  parts=p.data.map(r=>({...r,desc:r.descr,at:+new Date(r.created_at)}));
-  draws=d.data.map(r=>({...r,at:+new Date(r.created_at)}));
-  render();
+  loading=true;if(!parts.length&&!draws.length)render();
+  try{
+    const [p,d]=await Promise.all([sb.from('participants').select('*').order('created_at'),sb.from('draws').select('*').order('created_at',{ascending:false})]);
+    const er=p.error||d.error;
+    if(er){loadErr=hint(er)}else{
+      loadErr=null;
+      parts=p.data.map(r=>({...r,desc:r.descr,at:+new Date(r.created_at)}));
+      draws=d.data.map(r=>({...r,at:+new Date(r.created_at)}));
+    }
+  }catch(e){loadErr=hint(e)}
+  loading=false;render();
 }
 async function save(coll,id,data){
-  let r;
-  if(coll==='participants'){
-    const row={name:data.name,handle:data.handle,skill:data.skill,descr:data.desc,ready:data.ready,work:data.work};
-    r=byId(id)?await sb.from('participants').update(row).eq('id',id):await sb.from('participants').insert(row);
-  }else r=await sb.from('draws').insert({note:data.note,pairs:data.pairs});
-  if(r.error)toast('Не удалось сохранить');else await load();
+  try{
+    let r;
+    if(coll==='participants'){
+      const row={name:data.name,handle:data.handle,skill:data.skill,descr:data.desc,ready:data.ready,work:data.work};
+      r=byId(id)?await sb.from('participants').update(row).eq('id',id):await sb.from('participants').insert(row);
+    }else r=await sb.from('draws').insert({note:data.note,pairs:data.pairs});
+    if(r.error){toast('Не сохранено. '+hint(r.error),6000);return false}
+  }catch(e){toast('Не сохранено. '+hint(e),6000);return false}
+  await load();return true;
 }
 async function del(coll,id){
-  const r=await sb.from(coll).delete().eq('id',id);
-  if(r.error)toast('Не удалось удалить');else await load();
+  try{
+    const r=await sb.from(coll).delete().eq('id',id);
+    if(r.error){toast('Не удалено. '+hint(r.error),6000);return false}
+  }catch(e){toast('Не удалено. '+hint(e),6000);return false}
+  await load();return true;
 }
 
 // ---------- participant form ----------
@@ -139,10 +160,10 @@ function openForm(p){
       $('button',{class:'wine',text:'Сохранить',onclick:async()=>{
         if(!name.value.trim()){err.textContent='Укажи имя';return}
         if(work.value&&!/^https:\/\//.test(work.value.trim())){err.textContent='Ссылка должна начинаться с https://';return}
-        await save('participants',p?p.id:rid(),{name:name.value.trim(),handle:handle.value.trim(),skill,desc:desc.value.trim(),ready:ready.checked,work:work.value.trim(),at:p?.at||Date.now()});
-        d.close()}}),
+        const ok=await save('participants',p?p.id:rid(),{name:name.value.trim(),handle:handle.value.trim(),skill,desc:desc.value.trim(),ready:ready.checked,work:work.value.trim()});
+        if(ok)d.close();else err.textContent='Не удалось сохранить, данные в форме не потеряны. Попробуйте ещё раз.'}}),
       $('button',{class:'danger',text:'Отмена',onclick:()=>d.close()}),
-      p&&$('button',{class:'danger',text:'Удалить',onclick:async()=>{if(confirm('Удалить участника?')){await del('participants',p.id);d.close()}}}))));
+      p&&$('button',{class:'danger',text:'Удалить',onclick:async()=>{if(confirm('Удалить участника?')){if(await del('participants',p.id))d.close()}}}))));
   d.showModal();name.focus();
 }
 
@@ -188,7 +209,7 @@ function pageDraw(){
   const note=$('input',{type:'text',placeholder:'Название списка, например «Зима 2026»',maxlength:80});
   const out=$('div',{class:'pairs'});const actions=$('div',{class:'row'});
   const show=()=>{out.replaceChildren(...(pending?pending.map(pairRow):[]));actions.replaceChildren(...(pending?[
-    $('button',{class:'wine',text:'Сохранить список',onclick:async()=>{await save('draws',rid(),{at:Date.now(),note:note.value.trim()||'Без названия',pairs:pending.map(x=>({...x,gn:byId(x.g)?.name||'',rn:byId(x.r)?.name||''}))});pending=null;toast('Список сохранён');render()}}),
+    $('button',{class:'wine',text:'Сохранить список',onclick:async()=>{if(!await save('draws',rid(),{at:Date.now(),note:note.value.trim()||'Без названия',pairs:pending.map(x=>({...x,gn:byId(x.g)?.name||'',rn:byId(x.r)?.name||''}))}))return;pending=null;toast('Список сохранён');render()}}),
     $('button',{class:'ghost',text:'Перетасовать заново',onclick:run})]:[]))};
   const run=()=>{if(parts.length<2){toast('Нужно минимум 2 участника');return}
     const sk={};parts.forEach(p=>sk[p.id]=p.skill||1);pending=derange(parts.map(p=>p.id),sk,balance.checked);show()};
@@ -224,7 +245,8 @@ function render(){
   const nav=document.getElementById('nav');nav.style.display=session?'flex':'none';
   if(!configured){a.replaceChildren($('div',{class:'banner',text:'Откройте index.html и впишите SUPABASE_URL и SUPABASE_ANON_KEY (см. README).'}));return}
   if(!session){a.replaceChildren(loginPage());return}
-  a.replaceChildren(cur==='draw'?pageDraw():pageParticipants());
+  const bn=loadErr?$('div',{class:'banner'},$('div',{text:loadErr}),$('button',{class:'wine sm',style:'margin-top:8px',text:'Повторить',onclick:()=>load()})):(loading&&!parts.length&&!draws.length?$('div',{class:'banner',text:'Загружаю данные…'}):null);
+  a.replaceChildren(bn,cur==='draw'?pageDraw():pageParticipants());
   document.querySelectorAll('#nav a[data-p]').forEach(l=>l.classList.toggle('on',l.dataset.p===cur));
 }
 addEventListener('hashchange',()=>{cur=location.hash.slice(1)==='draw'?'draw':'participants';render();scrollTo(0,0)});

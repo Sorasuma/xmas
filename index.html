@@ -220,7 +220,7 @@ function openForm(p){
 
 // ---------- participants page ----------
 function card(p){
-  const cover=firstImg(p.portfolio)||(p.work&&isImg(p.work)?p.work:null),v=vkUrl(p.vk);
+  const cover=firstImg(p.desc),v=vkUrl(p.vk);
   const miss=[!p.vk&&'ВК',!String(p.portfolio||'').trim()&&'примеры работ',!String(p.desc||'').trim()&&'референс'].filter(Boolean);
   return $('div',{class:'card',onclick:()=>openProfile(p)},
     cover?img(cover,'cover',true):null,

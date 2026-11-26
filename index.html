@@ -87,6 +87,7 @@ label.tog{flex-direction:row;align-items:center;gap:12px;text-transform:none;fon
 .banner{background:#ffd9b0;color:#4a0a12;padding:12px 16px;border-radius:18px;margin-bottom:16px;font-size:13px}
 .toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:50;padding:10px 20px;border-radius:99px;font-size:14px;max-width:92vw;text-align:center}
 #lb{max-width:96vw;width:auto}#lb img{max-width:96vw;max-height:88vh;border-radius:20px;display:block}
+.blk{display:flex;flex-direction:column;gap:8px}.miss{color:#c0452f}
 @media(max-width:600px){main{padding:16px 14px}.grid{grid-template-columns:1fr}dialog:not(#lb){max-width:100%;margin:auto 0 0}dialog:not(#lb) .sheet{border-radius:28px 28px 0 0;max-height:92vh;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}}
 </style>
 </head>
@@ -115,9 +116,11 @@ const ext=(u,t)=>$('a',{href:u,target:'_blank',rel:'noopener noreferrer',text:t}
 const IMGH=/^(i\.imgur\.com|pbs\.twimg\.com|cdn\.discordapp\.com|media\.discordapp\.net|i\.pinimg\.com|images\.unsplash\.com|files\.catbox\.moe|i\.ibb\.co|[\w-]+\.userapi\.com)$/i;
 function isImg(u){try{const x=new URL(u);return x.protocol==='https:'&&(/\.(png|jpe?g|gif|webp|avif|svg)$/i.test(x.pathname)||IMGH.test(x.hostname)||/[?&](format|fm)=(png|jpe?g|webp)/i.test(x.search))}catch(e){return false}}
 const urls=s=>String(s||'').match(/https:\/\/[^\s<]+/g)||[];
-const refImgs=p=>[...new Set(urls(p.desc).filter(isImg))];
+const firstImg=t=>urls(t).find(isImg);
+const host=u=>{try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return 'ссылка'}};
+const clean=t=>String(t||'').replace(/https:\/\/[^\s<]+/g,u=>isImg(u)?'':u).replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
 function vkUrl(v){v=(v||'').trim();if(!v)return '';if(/^https:\/\//.test(v))return v;return 'https://vk.com/'+v.replace(/^@/,'').replace(/^(https?:\/\/)?(m\.)?vk\.com\//,'')}
-function linkify(s){const f=document.createDocumentFragment();String(s||'').split(/(https:\/\/[^\s<]+)/g).forEach((t,i)=>{if(i%2)f.append(ext(t,t.length>38?t.slice(0,36)+'…':t));else f.append(t)});return f}
+function linkify(s){const f=document.createDocumentFragment();clean(s).split(/(https:\/\/[^\s<]+)/g).forEach((t,i)=>{if(i%2)f.append(ext(t,host(t)+' ↗'));else f.append(t)});return f}
 function stars(n){n=n||1;const w=$('span',{class:'stars','aria-label':n+' из 3'});w.append('★'.repeat(n));w.append($('i',{text:'★'.repeat(3-n)}));return w}
 function toast(t,ms=2200){const e=$('div',{class:'toast glass',text:t});document.body.append(e);setTimeout(()=>e.remove(),ms)}
 function copy(t){(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast('Скопировано'),()=>{const a=$('textarea');a.value=t;document.body.append(a);a.select();try{document.execCommand('copy');toast('Скопировано')}catch(e){toast('Не удалось скопировать')}a.remove()})}
@@ -126,13 +129,15 @@ function img(u,cls,noLb){const i=$('img',{src:u,loading:'lazy',decoding:'async',
   i.addEventListener('error',()=>i.replaceWith(ext(u,'Картинку не удалось показать, открыть ссылку')));
   if(!noLb)i.addEventListener('click',sp(()=>lightbox(u)));return i}
 const gallery=l=>l.length?$('div',{class:'gal'},l.map(u=>img(u))):null;
+function block(title,text){const t=String(text||'').trim();if(!t)return null;const im=[...new Set(urls(t).filter(isImg))],c=clean(t);
+  return $('div',{class:'blk'},$('div',{class:'handle',text:title}),im.length?gallery(im):null,c?$('div',{class:'desc'},linkify(c)):null)}
 
 // ---------- data ----------
 function hint(e){
   const m=String((e&&e.message)||e||''),c=e&&e.code;
-  if(c==='PGRST204'||/column .*(vk|schema cache)/i.test(m))return 'Не хватает колонки vk. Выполните файл add-vk.sql в SQL Editor в Supabase.';
-  if(c==='42P01'||c==='PGRST205'||/does not exist/i.test(m))return 'Таблицы не найдены. Выполните файл supabase.sql в SQL Editor в Supabase.';
-  if(c==='42501'||/permission denied|row-level security|JWT/i.test(m))return 'Нет доступа к данным. Выполните fix-access.sql, затем выйдите и войдите снова. Технический текст: '+(c?c+' ':'')+m;
+  if(c==='PGRST204'||/column .*(vk|portfolio|schema cache)/i.test(m))return 'Не хватает колонки в таблице. Выполните файл setup.sql в SQL Editor в Supabase.';
+  if(c==='42P01'||c==='PGRST205'||/does not exist/i.test(m))return 'Таблицы не найдены. Выполните файл setup.sql в SQL Editor в Supabase.';
+  if(c==='42501'||/permission denied|row-level security|JWT/i.test(m))return 'Нет доступа к данным. Выполните setup.sql, затем выйдите и войдите снова. Технический текст: '+(c?c+' ':'')+m;
   if(/Invalid API key|apikey/i.test(m))return 'Неверный ключ SUPABASE_ANON_KEY.';
   if(/Failed to fetch|NetworkError|Load failed/i.test(m))return 'Нет соединения с Supabase. Проверьте интернет.';
   return 'Ошибка: '+m;
@@ -151,7 +156,7 @@ async function load(){
 async function save(coll,id,data){
   try{let r;
     if(coll==='participants'){
-      const row={name:data.name,handle:data.handle,vk:data.vk,skill:data.skill,descr:data.desc,ready:data.ready,work:data.work};
+      const row={name:data.name,handle:data.handle,vk:data.vk,portfolio:data.portfolio,skill:data.skill,descr:data.desc,ready:data.ready,work:data.work};
       r=byId(id)?await sb.from('participants').update(row).eq('id',id):await sb.from('participants').insert(row);
     }else{
       const row={note:data.note,pairs:data.pairs};
@@ -170,37 +175,43 @@ async function del(coll,id){
 // ---------- participant dialogs ----------
 function dlgShow(nodes){const d=document.getElementById('dlg');d.replaceChildren($('div',{class:'sheet'},nodes));if(!d.open)d.showModal();return d}
 function openProfile(p){
-  const v=vkUrl(p.vk),refs=refImgs(p);
+  const v=vkUrl(p.vk),empty=!String(p.portfolio||'').trim()&&!String(p.desc||'').trim();
   const d=dlgShow([
     $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),$('span',{class:'spacer'}),stars(p.skill)),
     $('h2',{text:p.name}),
-    $('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?ext(v,'Профиль ВК'):null),
-    p.desc?$('div',{class:'desc'},linkify(p.desc)):$('div',{class:'handle',text:'Без описания'}),
-    gallery(refs),
-    p.work&&/^https:\/\//.test(p.work)?[$('div',{class:'handle',text:'Готовая работа'}),isImg(p.work)?img(p.work,'wk'):ext(p.work,'Открыть готовую работу →')]:null,
+    $('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?ext(v,'Профиль ВК ↗'):null),
+    block('Примеры работ',p.portfolio),block('Референс персонажа',p.desc),
+    empty?$('div',{class:'handle',text:'Анкета пока не заполнена'}):null,
+    p.work&&/^https:\/\//.test(p.work)?[$('div',{class:'handle',text:'Готовая работа'}),isImg(p.work)?img(p.work,'wk'):ext(p.work,'Открыть готовую работу ↗')]:null,
     $('div',{class:'row'},$('button',{class:'wine',text:'Изменить',onclick:()=>openForm(p)}),$('button',{class:'danger',text:'Закрыть',onclick:()=>d.close()}))]);
 }
 function openForm(p){
-  const v={name:'',handle:'',vk:'',skill:2,desc:'',ready:false,work:'',...(p||{})};let skill=v.skill;
+  const v={name:'',handle:'',vk:'',portfolio:'',skill:2,desc:'',ready:false,work:'',...(p||{})};let skill=v.skill;
   const name=$('input',{type:'text',value:v.name,placeholder:'Имя',maxlength:60});
   const handle=$('input',{type:'text',value:v.handle,placeholder:'@nickname или ID',maxlength:60});
   const vk=$('input',{type:'text',value:v.vk||'',placeholder:'vk.com/nickname',maxlength:120});
-  const desc=$('textarea',{placeholder:'Что любишь рисовать, чего не хочешь. Ссылки на картинки-референсы (https://…) покажутся как картинки'});desc.value=v.desc||'';
+  const port=$('textarea',{placeholder:'Ссылки на 2–3 рисунка, каждая с новой строки'});port.value=v.portfolio||'';
+  const desc=$('textarea',{placeholder:'Ссылки на референс или арты персонажа, пара слов о характере и предпочтениях'});desc.value=v.desc||'';
   const ready=$('input',{type:'checkbox'});ready.checked=!!v.ready;
   const work=$('input',{type:'url',value:v.work||'',placeholder:'https://… ссылка на готовую работу'});
   const sp2=$('div',{class:'starpick'});
   const paint=()=>[...sp2.children].forEach((b,i)=>b.classList.toggle('on',i<skill));
   [1,2,3].forEach(n=>sp2.append($('button',{type:'button','aria-label':n+' из 3',text:'★',onclick:()=>{skill=n;paint()}})));paint();
-  const err=$('div',{class:'handle'});
-  const d=dlgShow([$('h2',{text:p?'Изменить участника':'Новый участник'}),
-    $('label',{text:'Имя'},name),$('label',{text:'ID / ник'},handle),$('label',{text:'Профиль ВК'},vk),
-    $('label',{text:'Уровень навыка'},sp2),$('label',{text:'Описание и референсы'},desc),
+  const err=$('div',{class:'handle miss'});
+  const hint2=t=>$('div',{class:'handle',text:t});
+  const d=dlgShow([$('h2',{text:p?'Изменить анкету':'Новая анкета'}),
+    $('label',{text:'Имя'},name),$('label',{text:'ID / ник'},handle),
+    $('label',{text:'1. Страница ВКонтакте'},vk),hint2('Проверьте, что у вас открыты личные сообщения или вас можно добавить в беседу.'),
+    $('label',{text:'2. Примеры работ'},port),hint2('Несколько рисунков, чтобы организаторы подобрали подходящего Санту. Ссылки на картинки покажутся как картинки.'),
+    $('label',{text:'3. Референс персонажа'},desc),hint2('Готовый арт, референс или модель. По желанию добавьте описание характера и предпочтений.'),
+    $('label',{text:'Уровень навыка (ставят организаторы)'},sp2),
     $('label',{class:'tog'},ready,'Работа готова'),$('label',{text:'Ссылка на готовую работу'},work),err,
     $('div',{class:'row'},
       $('button',{class:'wine',text:'Сохранить',onclick:async()=>{
         if(!name.value.trim()){err.textContent='Укажи имя';return}
-        if(work.value&&!/^https:\/\//.test(work.value.trim())){err.textContent='Ссылка должна начинаться с https://';return}
-        const ok=await save('participants',p?p.id:rid(),{name:name.value.trim(),handle:handle.value.trim(),vk:vk.value.trim(),skill,desc:desc.value.trim(),ready:ready.checked,work:work.value.trim()});
+        if(!vk.value.trim()){err.textContent='Укажи ссылку на ВК, это нужно для связи';return}
+        if(work.value&&!/^https:\/\//.test(work.value.trim())){err.textContent='Ссылка на работу должна начинаться с https://';return}
+        const ok=await save('participants',p?p.id:rid(),{name:name.value.trim(),handle:handle.value.trim(),vk:vk.value.trim(),portfolio:port.value.trim(),skill,desc:desc.value.trim(),ready:ready.checked,work:work.value.trim()});
         if(ok)d.close();else err.textContent='Не удалось сохранить, введённое не потеряно. Попробуйте ещё раз.'}}),
       $('button',{class:'danger',text:'Отмена',onclick:()=>d.close()}),
       p&&$('button',{class:'danger',text:'Удалить',onclick:async()=>{if(confirm('Удалить участника?')&&await del('participants',p.id))d.close()}}))]);
@@ -209,58 +220,62 @@ function openForm(p){
 
 // ---------- participants page ----------
 function card(p){
-  const w=p.work&&isImg(p.work)?p.work:null,cover=w||refImgs(p)[0],v=vkUrl(p.vk);
+  const cover=firstImg(p.portfolio)||(p.work&&isImg(p.work)?p.work:null),v=vkUrl(p.vk);
+  const miss=[!p.vk&&'ВК',!String(p.portfolio||'').trim()&&'примеры работ',!String(p.desc||'').trim()&&'референс'].filter(Boolean);
   return $('div',{class:'card',onclick:()=>openProfile(p)},
     cover?img(cover,'cover',true):null,
     $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),$('span',{class:'spacer'}),stars(p.skill)),
-    $('div',{},$('h3',{text:p.name}),$('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?$('a',{href:v,target:'_blank',rel:'noopener noreferrer',text:'ВК',onclick:e=>e.stopPropagation()}):null)),
-    p.desc?$('div',{class:'desc clamp'},linkify(p.desc)):null,
+    $('div',{},$('h3',{text:p.name}),$('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?$('a',{href:v,target:'_blank',rel:'noopener noreferrer',text:'ВК ↗',onclick:e=>e.stopPropagation()}):null)),
+    miss.length?$('div',{class:'handle miss',text:'Не хватает: '+miss.join(', ')}):null,
     $('div',{class:'row'},$('button',{class:'wine sm',text:'Изменить',onclick:sp(()=>openForm(p))}),
       $('button',{class:'danger sm',text:p.ready?'Снять «готово»':'Готово ✓',onclick:sp(()=>save('participants',p.id,{...p,ready:!p.ready}))})));
 }
 function pageParticipants(){
   const n=parts.filter(p=>p.ready).length,grid=$('div',{class:'grid'});
   const fill=()=>{const s=q.trim().toLowerCase();
-    const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(!s||[p.name,p.handle,p.vk,p.desc].join(' ').toLowerCase().includes(s)));
+    const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(!s||[p.name,p.handle,p.vk,p.portfolio,p.desc].join(' ').toLowerCase().includes(s)));
     grid.replaceChildren(...(l.length?l.map(card):[$('div',{class:'empty glass',text:parts.length?'Никого не найдено':'Пока никого нет. Нажми «Добавить».'})]))};
-  const search=$('input',{type:'search',placeholder:'Поиск по имени, ID, ВК, описанию',value:q});search.addEventListener('input',()=>{q=search.value;fill()});
+  const search=$('input',{type:'search',placeholder:'Поиск по имени, ID, ВК, анкете',value:q});search.addEventListener('input',()=>{q=search.value;fill()});
   const chips=$('div',{class:'chips'});
   [['all','Все'],['ready','Готовы'],['wip','В процессе']].forEach(([k,t])=>chips.append($('button',{class:'chip ghost'+(flt===k?' on':''),text:t,onclick:e=>{flt=k;[...chips.children].forEach(c=>c.classList.remove('on'));e.currentTarget.classList.add('on');fill()}})));
   fill();
   return $('div',{},
     $('h1',{},'Тайный Санта ',$('em',{text:'для художников'})),
-    $('p',{class:'sub',text:'Участники, уровень навыка и готовность работ. Нажми на карточку, чтобы открыть профиль с картинками.'}),
+    $('p',{class:'sub',text:'Участники, уровень навыка и готовность работ. Нажми на карточку, чтобы открыть анкету с картинками.'}),
     $('div',{class:'stat glass'},$('div',{class:'row'},$('b',{text:'Готово '+n+' из '+parts.length}),$('span',{class:'spacer'}),$('button',{class:'sm',text:'+ Добавить',onclick:()=>openForm()})),$('div',{class:'prog'},$('i',{style:'width:'+(parts.length?Math.round(n/parts.length*100):0)+'%'}))),
     $('div',{class:'tools glass'},search,chips),grid);
 }
 
 // ---------- draw: helpers ----------
 function derange(ids,sk,balance){
+  // один общий круг: никто не дарит себе и нет взаимных обменов (кроме случая из двух участников)
   const n=ids.length;let best=null,bs=1e9;
-  for(let t=0;t<(balance?600:1);t++){
-    let r;do{r=[...ids];for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]]}}while(r.some((x,i)=>x===ids[i]));
-    const s=balance?r.reduce((a,x,i)=>a+Math.abs(sk[ids[i]]-sk[x]),0):0;
-    if(s<bs){bs=s;best=r}
+  for(let t=0;t<(balance?1500:1);t++){
+    const r=[...ids];for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]]}
+    const sc=balance?r.reduce((a,x,i)=>a+Math.abs(sk[x]-sk[r[(i+1)%n]]),0):0;
+    if(sc<bs){bs=sc;best=r}
   }
-  return ids.map((g,i)=>({g,r:best[i]}));
+  return best.map((g,i)=>({g,r:best[(i+1)%n]}));
 }
 const nm=(id,fb)=>byId(id)?byId(id).name:(fb||'—');
-function msg(pr){const g=byId(pr.g),r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+r.handle:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nПожелания: '+r.desc:'')}
+function msg(pr){const r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+r.handle:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nРеференс и пожелания: '+r.desc:'')+(r.portfolio?'\nПримеры работ: '+r.portfolio:'')}
 const listText=P=>P.map(x=>nm(x.g,x.gn)+' → '+(x.r?nm(x.r,x.rn):'без пары')).join('\n');
+const mutuals=P=>new Set(P.filter(x=>x.r&&P.some(y=>y.g===x.r&&y.r===x.g)).map(x=>x.g));
 function side(id,fb){const p=byId(id);return $('div',{class:'side'},$('b',{text:nm(id,fb)}),$('small',{},p?stars(p.skill):'нет в списке'))}
 function details(pr){
   const r=byId(pr.r);if(!r)return $('div',{class:'more',text:'Получатель удалён из участников.'});const v=vkUrl(r.vk);
   return $('div',{class:'more'},
-    $('div',{class:'handle'},r.handle||'',r.handle&&v?' · ':null,v?ext(v,'Профиль ВК'):null),
-    r.desc?$('div',{class:'desc'},linkify(r.desc)):null,gallery(refImgs(r)),
+    $('div',{class:'handle'},r.handle||'',r.handle&&v?' · ':null,v?ext(v,'Профиль ВК ↗'):null),
+    block('Референс персонажа',r.desc),block('Примеры работ',r.portfolio),
     $('button',{class:'wine sm',text:'Копировать сообщение',onclick:()=>copy(msg(pr))}));
 }
-function pairRow(pr,showReady){
+function pairRow(pr,showReady,mut){
   const g=byId(pr.g);let det=null;
+  const st=[showReady&&g?[$('span',{class:'pill '+(g.ready?'ok':'off'),text:g.ready?'работа готова':'рисует'}),g.ready&&/^https:\/\//.test(g.work||'')?ext(g.work,'смотреть работу ↗'):null]:null,mut&&mut.has(pr.g)?$('span',{class:'pill off',text:'взаимный обмен'}):null].flat().filter(Boolean);
   const row=$('div',{class:'pair'},
     $('div',{class:'pmain',onclick:()=>{if(!pr.r)return;if(det){det.remove();det=null}else{det=details(pr);row.append(det)}}},
       side(pr.g,pr.gn),$('span',{class:'arr',text:'→'}),pr.r?side(pr.r,pr.rn):$('div',{class:'side'},$('b',{text:'без пары'}))),
-    showReady&&g?$('div',{class:'pstat'},$('span',{class:'pill '+(g.ready?'ok':'off'),text:g.ready?'работа готова':'рисует'}),g.ready&&/^https:\/\//.test(g.work||'')?ext(g.work,'смотреть работу'):null):null);
+    st.length?$('div',{class:'pstat'},st):null);
   return row;
 }
 // ---------- draw: editing ----------
@@ -270,6 +285,7 @@ function swapTo(pr,nr){
   const old=pr.r;
   if(nr){const o=ed.pairs.find(x=>x.r===nr&&x!==pr);if(o){if(old===o.g){toast('Так Санта достанется самому себе');return}o.r=old||null}}
   pr.r=nr;
+  if(nr&&mutuals(ed.pairs).has(pr.g))toast('Внимание: получился взаимный обмен. Лучше избегать его.',4000);
 }
 function removeFrom(id){
   const P=ed.pairs,gi=P.find(x=>x.r===id),xi=P.find(x=>x.g===id),nr=xi&&xi.r;
@@ -311,7 +327,7 @@ function editor(){
     $('div',{class:'row'},$('button',{text:'Сохранить изменения',onclick:saveEdit}),$('button',{class:'ghost',text:'Отмена',onclick:()=>{ed=null;render()}})));
 }
 function savedItem(dr){
-  const isEd=ed&&ed.id===dr.id,P=dr.pairs||[],done=P.filter(x=>byId(x.g)&&byId(x.g).ready).length,open=opened[dr.id]||isEd;
+  const isEd=ed&&ed.id===dr.id,P=dr.pairs||[],mut=mutuals(P),done=P.filter(x=>byId(x.g)&&byId(x.g).ready).length,open=opened[dr.id]||isEd;
   return $('div',{class:'saved glass'},
     $('div',{},$('b',{text:dr.note}),$('div',{class:'handle',style:'color:inherit;opacity:.75',text:new Date(dr.at).toLocaleDateString('ru-RU')+' · пар: '+P.length+' · работ готово: '+done+' из '+P.length})),
     $('div',{class:'row'},
@@ -319,13 +335,13 @@ function savedItem(dr){
       !isEd&&$('button',{class:'ghost sm',text:'Копировать',onclick:()=>copy(listText(P))}),
       !isEd&&$('button',{class:'ghost sm',text:'Редактировать',onclick:()=>{ed={id:dr.id,note:dr.note,pairs:P.map(x=>({...x}))};opened[dr.id]=true;render()}}),
       !isEd&&$('button',{class:'ghost sm',text:'Удалить',onclick:()=>confirm('Удалить сохранённый список?')&&del('draws',dr.id)})),
-    open?(isEd?editor():$('div',{class:'pairs',style:'margin:0'},P.map(x=>pairRow(x,true)))):null);
+    open?(isEd?editor():$('div',{class:'pairs',style:'margin:0'},P.map(x=>pairRow(x,true,mut)))):null);
 }
 function pageDraw(){
   const balance=$('input',{type:'checkbox'});balance.checked=bal;balance.addEventListener('change',()=>bal=balance.checked);
   const note=$('input',{type:'text',placeholder:'Название списка, например «Зима 2026»',maxlength:80,value:noteTxt});note.addEventListener('input',()=>noteTxt=note.value);
   const out=$('div',{class:'pairs'}),actions=$('div',{class:'row'});
-  const show=()=>{out.replaceChildren(...(pending?pending.map(x=>pairRow(x,false)):[]));actions.replaceChildren(...(pending?[
+  const show=()=>{out.replaceChildren(...(pending?pending.map(x=>pairRow(x,false,mutuals(pending))):[]));actions.replaceChildren(...(pending?[
     $('button',{text:'Сохранить список',onclick:async()=>{
       if(!await save('draws',rid(),{note:noteTxt.trim()||'Без названия',pairs:pending.map(x=>({...x,gn:nm(x.g),rn:nm(x.r)}))}))return;
       pending=null;noteTxt='';toast('Список сохранён');render()}}),
@@ -336,7 +352,7 @@ function pageDraw(){
   const saved=draws.length?draws.map(savedItem):[$('div',{class:'empty glass',text:'Сохранённых списков пока нет. Их видят все организаторы.'})];
   return $('div',{},
     $('h1',{},'Жеребьёвка ',$('em',{text:'Санты'})),
-    $('p',{class:'sub',text:'Нажми на пару, чтобы увидеть описание, референсы и скопировать сообщение для Санты. Сам себе никто не достанется.'}),
+    $('p',{class:'sub',text:'Нажми на пару, чтобы открыть анкету получателя и скопировать сообщение для Санты. Сам себе никто не достанется, взаимных обменов («А → Б и Б → А») нет, кроме случая из двух участников.'}),
     $('div',{class:'opt glass'},$('label',{},balance,'Подбирать пары с близким уровнем'),note,$('button',{text:'Тасовать',onclick:run})),
     out,actions,
     $('h2',{style:'margin:30px 0 14px'},'Сохранённые ',$('em',{text:'списки'})),saved);

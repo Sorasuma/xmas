@@ -88,6 +88,32 @@ label.tog{flex-direction:row;align-items:center;gap:12px;text-transform:none;fon
 .toast{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:50;padding:10px 20px;border-radius:99px;font-size:14px;max-width:92vw;text-align:center}
 #lb{max-width:96vw;width:auto}#lb img{max-width:96vw;max-height:88vh;border-radius:20px;display:block}
 .blk{display:flex;flex-direction:column;gap:8px}.miss{color:#c0452f}
+
+.step{display:flex;align-items:center;gap:12px;margin:26px 0 12px}
+.step .num{width:32px;height:32px;border-radius:50%;background:var(--cream);color:#6b0f1a;display:grid;place-items:center;font:600 15px 'Playfair Display',serif;flex:none}
+.panel{padding:16px 18px;margin-bottom:12px;display:flex;flex-direction:column;gap:12px}
+.pchips{display:flex;flex-wrap:wrap;gap:8px}
+.pchip{display:inline-flex;align-items:center;gap:8px;padding:5px 14px 5px 5px;min-height:38px;font-size:13px;text-transform:none;letter-spacing:0;background:transparent;color:var(--cream);border:1px solid var(--glassb);opacity:.55}
+.pchip.on{background:var(--cream);color:#6b0f1a;opacity:1;border-color:transparent}
+.av{width:52px;height:52px;border-radius:50%;object-fit:cover;display:grid;place-items:center;color:#fff;font:600 20px 'Playfair Display',serif;flex:none;border:2px solid var(--card)}
+.pchip .av,.cchip .av{width:28px;height:28px;font-size:13px;border-width:0}
+.seg{display:inline-flex;align-self:flex-start;padding:4px;border-radius:99px;background:var(--glass);border:1px solid var(--glassb)}
+.seg button{background:transparent;color:var(--cream);padding:8px 16px;min-height:36px;font-size:12px}
+.seg button.on{background:var(--cream);color:#6b0f1a}
+.stat2{padding:6px 14px;border-radius:99px;font-size:12px}
+.pair{animation:pop .45s both;animation-delay:calc(var(--i,0)*55ms)}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}}
+.side{display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;min-width:0}
+.cap{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink2)}
+.arr{width:34px;height:34px;border-radius:50%;background:var(--wine);color:var(--onwine);display:grid;place-items:center;font-size:17px;box-shadow:0 4px 10px #0003}
+.chains{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.chain{display:flex;flex-wrap:wrap;align-items:center;gap:6px;background:var(--card);color:var(--ink);padding:12px;border-radius:22px}
+.cchip{display:inline-flex;align-items:center;gap:6px;padding:4px 12px 4px 4px;border-radius:99px;border:1px solid var(--line);font-size:13px}
+.carr{color:var(--wine2);font-weight:600}
+option{color:#2a0509;background:#fff6e0}
+button.big{padding:15px 30px;font-size:14px}
+.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.frow select{flex:1;min-width:130px}
+.saved h3{font-size:20px}
 @media(max-width:600px){main{padding:16px 14px}.grid{grid-template-columns:1fr}dialog:not(#lb){max-width:100%;margin:auto 0 0}dialog:not(#lb) .sheet{border-radius:28px 28px 0 0;max-height:92vh;padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))}}
 </style>
 </head>
@@ -105,7 +131,7 @@ const SUPABASE_ANON_KEY="sb_publishable_nxRSziTJBkFMxBJLXh2Sbg_2Z1YcYFS";
 const $=(t,a={},...k)=>{const e=document.createElement(t);for(const x in a){if(x==='class')e.className=a[x];else if(x.startsWith('on'))e.addEventListener(x.slice(2),a[x]);else if(x==='text')e.textContent=a[x];else e.setAttribute(x,a[x])}k.flat().forEach(c=>c!=null&&c!==false&&e.append(c));return e};
 const hashPage=()=>location.hash.slice(1)==='draw'?'draw':'participants';
 let sb=null,session=null,ch=null,parts=[],draws=[],pending=null,cur=hashPage(),loadErr=null,loading=false;
-let q='',flt='all',bal=true,noteTxt='',opened={},ed=null;
+let q='',flt='all',bal=true,noteTxt='',opened={},ed=null,excl=new Set(),forb=[],dv='cards';
 const configured=!SUPABASE_URL.includes('YOUR-PROJECT');
 const rid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const byId=id=>parts.find(p=>p.id===id);
@@ -247,21 +273,54 @@ function pageParticipants(){
 }
 
 // ---------- draw: helpers ----------
-function derange(ids,sk,balance){
-  // один общий круг: никто не дарит себе и нет взаимных обменов (кроме случая из двух участников)
+function derange(ids,sk,balance,bad){
+  // один общий круг: никто не дарит себе, нет взаимных обменов (кроме случая из двух) и нет запрещённых пар
   const n=ids.length;let best=null,bs=1e9;
-  for(let t=0;t<(balance?1500:1);t++){
+  for(let t=0;t<2000;t++){
     const r=[...ids];for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]]}
+    if(bad.size&&r.some((x,i)=>bad.has(x+'|'+r[(i+1)%n])))continue;
     const sc=balance?r.reduce((a,x,i)=>a+Math.abs(sk[x]-sk[r[(i+1)%n]]),0):0;
-    if(sc<bs){bs=sc;best=r}
+    if(sc<bs){bs=sc;best=r;if(!balance)break}
   }
-  return best.map((g,i)=>({g,r:best[(i+1)%n]}));
+  return best&&best.map((g,i)=>({g,r:best[(i+1)%n]}));
 }
 const nm=(id,fb)=>byId(id)?byId(id).name:(fb||'—');
 function msg(pr){const r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+r.handle:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nРеференс и пожелания: '+r.desc:'')+(r.portfolio?'\nПримеры работ: '+r.portfolio:'')}
 const listText=P=>P.map(x=>nm(x.g,x.gn)+' → '+(x.r?nm(x.r,x.rn):'без пары')).join('\n');
 const mutuals=P=>new Set(P.filter(x=>x.r&&P.some(y=>y.g===x.r&&y.r===x.g)).map(x=>x.g));
-function side(id,fb){const p=byId(id);return $('div',{class:'side'},$('b',{text:nm(id,fb)}),$('small',{},p?stars(p.skill):'нет в списке'))}
+function ava(id,fb){
+  const p=byId(id),n=nm(id,fb),u=p&&firstImg(p.desc);
+  const ini=$('div',{class:'av',text:(n.trim()[0]||'?').toUpperCase()});
+  ini.style.background='hsl('+(([...n].reduce((a,c)=>a+c.charCodeAt(0),0)*37)%360)+',45%,38%)';
+  if(!u)return ini;
+  const i=$('img',{src:u,loading:'lazy',decoding:'async',referrerpolicy:'no-referrer',alt:'',class:'av'});
+  i.addEventListener('error',()=>i.replaceWith(ini));return i;
+}
+function side(id,fb,cap){const p=byId(id);return $('div',{class:'side'},cap?$('div',{class:'cap',text:cap}):null,ava(id,fb),$('b',{text:nm(id,fb)}),p?stars(p.skill):$('small',{text:'нет в списке'}))}
+function chains(P){
+  const m=new Map(P.map(x=>[x.g,x])),seen=new Set(),inc=new Set(P.filter(x=>x.r).map(x=>x.r)),out=[];
+  const walk=st=>{const c=[];let k=st;while(k&&m.has(k)&&!seen.has(k)){seen.add(k);c.push(k);k=m.get(k).r}if(k&&!seen.has(k))c.push(k);return c};
+  P.filter(x=>!inc.has(x.g)).forEach(x=>out.push({c:walk(x.g),closed:false}));
+  P.forEach(x=>{if(!seen.has(x.g)){const c=walk(x.g);out.push({c:[...c,c[0]],closed:true})}});
+  return out;
+}
+function chainView(P){
+  const fbn=id=>{const a=P.find(x=>x.g===id);if(a&&a.gn)return a.gn;const b=P.find(x=>x.r===id);return b&&b.rn||''};
+  const w=$('div',{class:'chains'});
+  chains(P).forEach(ch=>{const r=$('div',{class:'chain'});
+    ch.c.forEach((id,i)=>{if(i)r.append($('span',{class:'carr',text:'→'}));r.append($('span',{class:'cchip'},ava(id,fbn(id)),$('span',{text:nm(id,fbn(id))})))});
+    r.append($('span',{class:'carr',text:ch.closed?'↺':''}));w.append(r)});
+  return w;
+}
+function pairsView(P,showReady){
+  if(dv==='chain')return chainView(P);
+  const mut=mutuals(P);return $('div',{class:'pairs'},P.map((x,i)=>pairRow(x,showReady,mut,i)));
+}
+const viewToggle=()=>$('div',{class:'seg'},[['cards','Карточки'],['chain','Цепочка']].map(([k,t])=>$('button',{class:dv===k?'on':'',text:t,onclick:()=>{dv=k;render()}})));
+function statsOf(P){const d=P.filter(x=>x.r&&byId(x.g)&&byId(x.r));const avg=d.length?d.reduce((a,x)=>a+Math.abs((byId(x.g).skill||1)-(byId(x.r).skill||1)),0)/d.length:0;
+  return [['Пар',P.length],['Разница уровней',avg.toFixed(1)],['Взаимных',mutuals(P).size/2]]}
+const allMsgs=P=>P.filter(x=>x.r).map(msg).join('\n\n———\n\n');
+const remind=P=>'Напоминание: работы ещё не сдали:\n'+P.filter(x=>byId(x.g)&&!byId(x.g).ready).map(x=>'• '+nm(x.g)+(byId(x.g).vk?' '+vkUrl(byId(x.g).vk):'')).join('\n');
 function details(pr){
   const r=byId(pr.r);if(!r)return $('div',{class:'more',text:'Получатель удалён из участников.'});const v=vkUrl(r.vk);
   return $('div',{class:'more'},
@@ -269,12 +328,12 @@ function details(pr){
     block('Референс персонажа',r.desc),block('Примеры работ',r.portfolio),
     $('button',{class:'wine sm',text:'Копировать сообщение',onclick:()=>copy(msg(pr))}));
 }
-function pairRow(pr,showReady,mut){
+function pairRow(pr,showReady,mut,idx){
   const g=byId(pr.g);let det=null;
   const st=[showReady&&g?[$('span',{class:'pill '+(g.ready?'ok':'off'),text:g.ready?'работа готова':'рисует'}),g.ready&&/^https:\/\//.test(g.work||'')?ext(g.work,'смотреть работу ↗'):null]:null,mut&&mut.has(pr.g)?$('span',{class:'pill off',text:'взаимный обмен'}):null].flat().filter(Boolean);
-  const row=$('div',{class:'pair'},
+  const row=$('div',{class:'pair',style:'--i:'+Math.min(idx||0,12)},
     $('div',{class:'pmain',onclick:()=>{if(!pr.r)return;if(det){det.remove();det=null}else{det=details(pr);row.append(det)}}},
-      side(pr.g,pr.gn),$('span',{class:'arr',text:'→'}),pr.r?side(pr.r,pr.rn):$('div',{class:'side'},$('b',{text:'без пары'}))),
+      side(pr.g,pr.gn,'Санта'),$('span',{class:'arr',text:'→'}),pr.r?side(pr.r,pr.rn,'Получатель'):$('div',{class:'side'},$('div',{class:'cap',text:'Получатель'}),$('b',{text:'без пары'}))),
     st.length?$('div',{class:'pstat'},st):null);
   return row;
 }
@@ -327,35 +386,71 @@ function editor(){
     $('div',{class:'row'},$('button',{text:'Сохранить изменения',onclick:saveEdit}),$('button',{class:'ghost',text:'Отмена',onclick:()=>{ed=null;render()}})));
 }
 function savedItem(dr){
-  const isEd=ed&&ed.id===dr.id,P=dr.pairs||[],mut=mutuals(P),done=P.filter(x=>byId(x.g)&&byId(x.g).ready).length,open=opened[dr.id]||isEd;
+  const isEd=ed&&ed.id===dr.id,P=dr.pairs||[],done=P.filter(x=>byId(x.g)&&byId(x.g).ready).length,open=opened[dr.id]||isEd,pc=P.length?Math.round(done/P.length*100):0;
+  const late=P.some(x=>byId(x.g)&&!byId(x.g).ready);
   return $('div',{class:'saved glass'},
-    $('div',{},$('b',{text:dr.note}),$('div',{class:'handle',style:'color:inherit;opacity:.75',text:new Date(dr.at).toLocaleDateString('ru-RU')+' · пар: '+P.length+' · работ готово: '+done+' из '+P.length})),
-    $('div',{class:'row'},
-      !isEd&&$('button',{class:'ghost sm',text:open?'Скрыть':'Открыть',onclick:()=>{opened[dr.id]=!open;render()}}),
-      !isEd&&$('button',{class:'ghost sm',text:'Копировать',onclick:()=>copy(listText(P))}),
-      !isEd&&$('button',{class:'ghost sm',text:'Редактировать',onclick:()=>{ed={id:dr.id,note:dr.note,pairs:P.map(x=>({...x}))};opened[dr.id]=true;render()}}),
-      !isEd&&$('button',{class:'ghost sm',text:'Удалить',onclick:()=>confirm('Удалить сохранённый список?')&&del('draws',dr.id)})),
-    open?(isEd?editor():$('div',{class:'pairs',style:'margin:0'},P.map(x=>pairRow(x,true,mut)))):null);
+    $('div',{class:'row'},$('div',{},$('h3',{text:dr.note}),$('div',{class:'handle',style:'color:inherit;opacity:.75',text:new Date(dr.at).toLocaleDateString('ru-RU')+' · пар: '+P.length})),$('span',{class:'spacer'}),$('span',{class:'pill ok',text:done+' из '+P.length+' готово'})),
+    $('div',{class:'prog'},$('i',{style:'width:'+pc+'%'})),
+    !isEd&&$('div',{class:'row'},
+      $('button',{class:'ghost sm',text:open?'Скрыть':'Открыть',onclick:()=>{opened[dr.id]=!open;render()}}),
+      $('button',{class:'ghost sm',text:'Копировать список',onclick:()=>copy(listText(P))}),
+      $('button',{class:'ghost sm',text:'Все сообщения',onclick:()=>copy(allMsgs(P))}),
+      late&&$('button',{class:'ghost sm',text:'Напомнить',onclick:()=>copy(remind(P))}),
+      $('button',{class:'ghost sm',text:'Редактировать',onclick:()=>{ed={id:dr.id,note:dr.note,pairs:P.map(x=>({...x}))};opened[dr.id]=true;render()}}),
+      $('button',{class:'ghost sm',text:'Удалить',onclick:()=>confirm('Удалить сохранённый список?')&&del('draws',dr.id)})),
+    open?(isEd?editor():[$('div',{class:'row'},viewToggle()),pairsView(P,true)]):null);
 }
 function pageDraw(){
-  const balance=$('input',{type:'checkbox'});balance.checked=bal;balance.addEventListener('change',()=>bal=balance.checked);
-  const note=$('input',{type:'text',placeholder:'Название списка, например «Зима 2026»',maxlength:80,value:noteTxt});note.addEventListener('input',()=>noteTxt=note.value);
-  const out=$('div',{class:'pairs'}),actions=$('div',{class:'row'});
-  const show=()=>{out.replaceChildren(...(pending?pending.map(x=>pairRow(x,false,mutuals(pending))):[]));actions.replaceChildren(...(pending?[
-    $('button',{text:'Сохранить список',onclick:async()=>{
-      if(!await save('draws',rid(),{note:noteTxt.trim()||'Без названия',pairs:pending.map(x=>({...x,gn:nm(x.g),rn:nm(x.r)}))}))return;
-      pending=null;noteTxt='';toast('Список сохранён');render()}}),
-    $('button',{class:'ghost',text:'Перетасовать заново',onclick:run})]:[]))};
-  const run=()=>{if(parts.length<2){toast('Нужно минимум 2 участника');return}
-    const sk={};parts.forEach(p=>sk[p.id]=p.skill||1);pending=derange(parts.map(p=>p.id),sk,balance.checked);show()};
+  const act=()=>parts.filter(p=>!excl.has(p.id));
+  const cnt=$('span',{class:'handle',style:'color:inherit;opacity:.8'});
+  const upd=()=>{cnt.textContent='Участвуют: '+act().length+' из '+parts.length};upd();
+  const chips=$('div',{class:'pchips'});
+  parts.forEach(p=>{const b=$('button',{class:'pchip'+(excl.has(p.id)?'':' on'),onclick:()=>{excl.has(p.id)?excl.delete(p.id):excl.add(p.id);b.classList.toggle('on',!excl.has(p.id));upd()}},ava(p.id),p.name);chips.append(b)});
+  const seg=$('div',{class:'seg'},[['По уровню',true],['Случайно',false]].map(([t,v])=>$('button',{class:bal===v?'on':'',text:t,onclick:e=>{bal=v;[...seg.children].forEach(c=>c.classList.remove('on'));e.currentTarget.classList.add('on')}})));
+  const fa=$('select',{},act().map(p=>$('option',{value:p.id,text:p.name}))),fb2=$('select',{},act().map(p=>$('option',{value:p.id,text:p.name})));
+  fb2.selectedIndex=Math.min(1,act().length-1);
+  const addF=()=>{const a=fa.value,b=fb2.value;if(!a||!b||a===b){toast('Выберите двух разных участников');return}
+    if(!forb.some(f=>(f[0]===a&&f[1]===b)||(f[0]===b&&f[1]===a)))forb.push([a,b]);render()};
+  const fchips=$('div',{class:'pchips'},forb.map((f,i)=>$('button',{class:'pchip on',style:'padding-left:14px',text:nm(f[0])+' ⇄ '+nm(f[1])+'  ✕',onclick:()=>{forb.splice(i,1);render()}})));
+  const note=$('input',{type:'text',class:'fld',placeholder:'Название списка, например «Зима 2026»',maxlength:80,value:noteTxt});note.addEventListener('input',()=>noteTxt=note.value);
+  const out=$('div',{});
+  const show=()=>{out.replaceChildren();if(!pending)return;
+    out.append($('div',{class:'step'},$('span',{class:'num',text:'2'}),$('h2',{text:'Результат'})),
+      $('div',{class:'row',style:'margin-bottom:12px'},statsOf(pending).map(([k,v])=>$('span',{class:'stat2 glass',text:k+': '+v})),$('span',{class:'spacer'}),viewToggle()),
+      pairsView(pending,false),
+      $('div',{class:'row'},
+        $('button',{text:'Сохранить список',onclick:async()=>{
+          if(!await save('draws',rid(),{note:noteTxt.trim()||'Без названия',pairs:pending.map(x=>({...x,gn:nm(x.g),rn:nm(x.r)}))}))return;
+          pending=null;noteTxt='';toast('Список сохранён');render()}}),
+        $('button',{class:'ghost',text:'Перетасовать',onclick:run}),
+        $('button',{class:'ghost',text:'Копировать список',onclick:()=>copy(listText(pending))}),
+        $('button',{class:'ghost',text:'Все сообщения',onclick:()=>copy(allMsgs(pending))})))};
+  const go=$('button',{class:'big',text:'Тасовать',onclick:()=>run()});
+  function run(){
+    const ids=act().map(p=>p.id);if(ids.length<2){toast('Нужно минимум 2 участника');return}
+    const sk={};parts.forEach(p=>sk[p.id]=p.skill||1);
+    const bad=new Set(forb.flatMap(([a,b])=>[a+'|'+b,b+'|'+a]));
+    go.disabled=true;go.textContent='Тасуем…';
+    setTimeout(()=>{const r=derange(ids,sk,bal,bad);go.disabled=false;go.textContent='Тасовать';
+      if(!r){toast('Не получилось подобрать пары с такими запретами. Уберите часть запретов.',5000);return}
+      pending=r;show();out.scrollIntoView({behavior:'smooth',block:'start'})},650);
+  }
   show();
   const saved=draws.length?draws.map(savedItem):[$('div',{class:'empty glass',text:'Сохранённых списков пока нет. Их видят все организаторы.'})];
   return $('div',{},
     $('h1',{},'Жеребьёвка ',$('em',{text:'Санты'})),
-    $('p',{class:'sub',text:'Нажми на пару, чтобы открыть анкету получателя и скопировать сообщение для Санты. Сам себе никто не достанется, взаимных обменов («А → Б и Б → А») нет, кроме случая из двух участников.'}),
-    $('div',{class:'opt glass'},$('label',{},balance,'Подбирать пары с близким уровнем'),note,$('button',{text:'Тасовать',onclick:run})),
-    out,actions,
-    $('h2',{style:'margin:30px 0 14px'},'Сохранённые ',$('em',{text:'списки'})),saved);
+    $('p',{class:'sub',text:'Выберите участников, при желании добавьте запреты и тасуйте. Нажмите на пару, чтобы открыть анкету получателя.'}),
+    $('div',{class:'step'},$('span',{class:'num',text:'1'}),$('h2',{text:'Настройки'})),
+    $('div',{class:'panel glass'},$('div',{class:'row'},$('b',{text:'Кто участвует'}),cnt,$('span',{class:'spacer'}),
+        $('button',{class:'ghost sm',text:'Все',onclick:()=>{excl.clear();render()}}),
+        $('button',{class:'ghost sm',text:'Только с анкетой',onclick:()=>{parts.forEach(p=>{const ok=p.vk&&String(p.portfolio||'').trim()&&String(p.desc||'').trim();ok?excl.delete(p.id):excl.add(p.id)});render()}})),
+      chips),
+    $('div',{class:'panel glass'},$('b',{text:'Подбор пар'}),seg,$('div',{class:'handle',style:'color:inherit;opacity:.75',text:'«По уровню»: соседи в круге с близким навыком. Сам себе никто не достанется, взаимных обменов («А → Б и Б → А») нет, кроме случая из двух участников.'})),
+    $('div',{class:'panel glass'},$('b',{text:'Запретить пары'}),$('div',{class:'handle',style:'color:inherit;opacity:.75',text:'Например, друзья или те, кто уже дарил друг другу. Запрет работает в обе стороны.'}),
+      $('div',{class:'frow'},fa,fb2,$('button',{class:'ghost sm',text:'Запретить',onclick:addF})),fchips),
+    $('div',{class:'panel glass'},note,go),
+    out,
+    $('div',{class:'step'},$('span',{class:'num',text:'3'}),$('h2',{text:'Сохранённые списки'})),saved);
 }
 
 // ---------- shell ----------

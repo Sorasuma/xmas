@@ -146,6 +146,10 @@ const urls=s=>String(s||'').match(/https:\/\/[^\s<]+/g)||[];
 const firstImg=t=>urls(t).find(isImg);
 const host=u=>{try{return new URL(u).hostname.replace(/^www\./,'')}catch(e){return 'ссылка'}};
 const clean=t=>String(t||'').replace(/https:\/\/[^\s<]+/g,u=>isImg(u)?'':u).replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+const CAT=/(?:https?:\/\/)?(?:www\.)?(catwar\.(?:su|net))\/cat(\d+)/i;
+function catInfo(v){v=String(v||'').trim();let m=v.match(CAT);if(m)return{id:m[2],url:'https://'+m[1].toLowerCase()+'/cat'+m[2]};m=v.match(/^(?:cat)?(\d{3,})$/i);if(m)return{id:m[1],url:'https://catwar.su/cat'+m[1]};return null}
+function idNode(v){const c=catInfo(v);return c?$('a',{href:c.url,target:'_blank',rel:'noopener noreferrer',text:c.id,onclick:e=>e.stopPropagation()}):(v||'')}
+const idText=v=>{const c=catInfo(v);return c?c.id+' ('+c.url+')':v};
 function vkUrl(v){v=(v||'').trim();if(!v)return '';if(/^https:\/\//.test(v))return v;return 'https://vk.com/'+v.replace(/^@/,'').replace(/^(https?:\/\/)?(m\.)?vk\.com\//,'')}
 function linkify(s){const f=document.createDocumentFragment();clean(s).split(/(https:\/\/[^\s<]+)/g).forEach((t,i)=>{if(i%2)f.append(ext(t,host(t)+' ↗'));else f.append(t)});return f}
 function stars(n){n=n||1;const w=$('span',{class:'stars','aria-label':n+' из 3'});w.append('★'.repeat(n));w.append($('i',{text:'★'.repeat(3-n)}));return w}
@@ -206,7 +210,7 @@ function openProfile(p){
   const d=dlgShow([
     $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),p.tribe?$('span',{class:'pill off',text:p.tribe}):null,$('span',{class:'spacer'}),stars(p.skill)),
     $('h2',{text:p.name}),
-    $('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?ext(v,'Профиль ВК ↗'):null),
+    $('div',{class:'handle'},idNode(p.handle),p.handle&&v?' · ':null,v?ext(v,'Профиль ВК ↗'):null),
     block('Примеры работ',p.portfolio),block('Референс персонажа',p.desc),
     empty?$('div',{class:'handle',text:'Анкета пока не заполнена'}):null,
     p.work&&/^https:\/\//.test(p.work)?[$('div',{class:'handle',text:'Готовая работа'}),isImg(p.work)?img(p.work,'wk'):ext(p.work,'Открыть готовую работу ↗')]:null,
@@ -215,7 +219,7 @@ function openProfile(p){
 function openForm(p){
   const v={name:'',handle:'',vk:'',portfolio:'',skill:2,desc:'',ready:false,work:'',tribe:'',...(p||{})};let skill=v.skill;
   const name=$('input',{type:'text',value:v.name,placeholder:'Имя',maxlength:60});
-  const handle=$('input',{type:'text',value:v.handle,placeholder:'@nickname или ID',maxlength:60});
+  const handle=$('input',{type:'text',value:v.handle,placeholder:'ID или ссылка catwar.su/cat123456',maxlength:60});
   const vk=$('input',{type:'text',value:v.vk||'',placeholder:'vk.com/nickname',maxlength:120});
   const tribe=$('select',{},$('option',{value:'',text:'— выберите племя —'}),TRIBES.map(t=>$('option',{value:t,text:t})));tribe.value=v.tribe||'';
   const port=$('textarea',{placeholder:'Ссылки на 2–3 рисунка, каждая с новой строки'});port.value=v.portfolio||'';
@@ -254,7 +258,7 @@ function card(p){
   return $('div',{class:'card',onclick:()=>openProfile(p)},
     cover?img(cover,'cover',true):null,
     $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),p.tribe?$('span',{class:'pill off',text:p.tribe}):null,$('span',{class:'spacer'}),stars(p.skill)),
-    $('div',{},$('h3',{text:p.name}),$('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?$('a',{href:v,target:'_blank',rel:'noopener noreferrer',text:'ВК ↗',onclick:e=>e.stopPropagation()}):null)),
+    $('div',{},$('h3',{text:p.name}),$('div',{class:'handle'},idNode(p.handle),p.handle&&v?' · ':null,v?$('a',{href:v,target:'_blank',rel:'noopener noreferrer',text:'ВК ↗',onclick:e=>e.stopPropagation()}):null)),
     miss.length?$('div',{class:'handle miss',text:'Не хватает: '+miss.join(', ')}):null,
     $('div',{class:'row'},$('button',{class:'wine sm',text:'Изменить',onclick:sp(()=>openForm(p))}),
       $('button',{class:'danger sm',text:p.ready?'Снять «готово»':'Готово ✓',onclick:sp(()=>save('participants',p.id,{...p,ready:!p.ready}))})));
@@ -288,7 +292,7 @@ function derange(ids,sk,balance,bad){
   return best&&best.map((g,i)=>({g,r:best[(i+1)%n]}));
 }
 const nm=(id,fb)=>byId(id)?byId(id).name:(fb||'—');
-function msg(pr){const r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+r.handle:'')+(r.tribe?'\nПлемя: '+r.tribe:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nРеференс и пожелания: '+r.desc:'')+(r.portfolio?'\nПримеры работ: '+r.portfolio:'')}
+function msg(pr){const r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+idText(r.handle):'')+(r.tribe?'\nПлемя: '+r.tribe:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nРеференс и пожелания: '+r.desc:'')+(r.portfolio?'\nПримеры работ: '+r.portfolio:'')}
 const listText=P=>P.map(x=>nm(x.g,x.gn)+' → '+(x.r?nm(x.r,x.rn):'без пары')).join('\n');
 const mutuals=P=>new Set(P.filter(x=>x.r&&P.some(y=>y.g===x.r&&y.r===x.g)).map(x=>x.g));
 function ava(id,fb){
@@ -327,7 +331,7 @@ const remind=P=>'Напоминание: работы ещё не сдали:\n'
 function details(pr){
   const r=byId(pr.r);if(!r)return $('div',{class:'more',text:'Получатель удалён из участников.'});const v=vkUrl(r.vk);
   return $('div',{class:'more'},
-    $('div',{class:'handle'},r.handle||'',r.handle&&v?' · ':null,v?ext(v,'Профиль ВК ↗'):null),
+    $('div',{class:'handle'},idNode(r.handle),r.handle&&v?' · ':null,v?ext(v,'Профиль ВК ↗'):null),
     block('Референс персонажа',r.desc),block('Примеры работ',r.portfolio),
     $('button',{class:'wine sm',text:'Копировать сообщение',onclick:()=>copy(msg(pr))}));
 }

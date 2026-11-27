@@ -131,7 +131,7 @@ const SUPABASE_ANON_KEY="sb_publishable_nxRSziTJBkFMxBJLXh2Sbg_2Z1YcYFS";
 const $=(t,a={},...k)=>{const e=document.createElement(t);for(const x in a){if(x==='class')e.className=a[x];else if(x.startsWith('on'))e.addEventListener(x.slice(2),a[x]);else if(x==='text')e.textContent=a[x];else e.setAttribute(x,a[x])}k.flat().forEach(c=>c!=null&&c!==false&&e.append(c));return e};
 const hashPage=()=>location.hash.slice(1)==='draw'?'draw':'participants';
 let sb=null,session=null,ch=null,parts=[],draws=[],pending=null,cur=hashPage(),loadErr=null,loading=false;
-let q='',flt='all',bal=true,noteTxt='',opened={},ed=null,excl=new Set(),forb=[],dv='cards';
+let q='',flt='all',srt='def',sdir=1,bal=true,noteTxt='',opened={},ed=null,excl=new Set(),forb=[],dv='cards';
 const configured=!SUPABASE_URL.includes('YOUR-PROJECT');
 const rid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const byId=id=>parts.find(p=>p.id===id);
@@ -267,16 +267,21 @@ function pageParticipants(){
   const n=parts.filter(p=>p.ready).length,grid=$('div',{class:'grid'});
   const fill=()=>{const s=q.trim().toLowerCase();
     const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(!s||[p.name,p.handle,p.vk,p.portfolio,p.desc,p.tribe].join(' ').toLowerCase().includes(s)));
+    if(srt!=='def'){const key=p=>srt==='name'?String(p.name||'').toLowerCase():srt==='tribe'?(TRIBES.indexOf(p.tribe)<0?99:TRIBES.indexOf(p.tribe)):(p.skill||1);
+      l.sort((a,b)=>{const x=key(a),y=key(b);let c=typeof x==='string'?x.localeCompare(y,'ru'):x-y;if(!c&&srt!=='name')c=String(a.name||'').toLowerCase().localeCompare(String(b.name||'').toLowerCase(),'ru');return c*sdir})}
     grid.replaceChildren(...(l.length?l.map(card):[$('div',{class:'empty glass',text:parts.length?'Никого не найдено':'Пока никого нет. Нажми «Добавить».'})]))};
   const search=$('input',{type:'search',placeholder:'Поиск по имени, ID, ВК, племени, анкете',value:q});search.addEventListener('input',()=>{q=search.value;fill()});
   const chips=$('div',{class:'chips'});
   [['all','Все'],['ready','Готовы'],['wip','В процессе']].forEach(([k,t])=>chips.append($('button',{class:'chip ghost'+(flt===k?' on':''),text:t,onclick:e=>{flt=k;[...chips.children].forEach(c=>c.classList.remove('on'));e.currentTarget.classList.add('on');fill()}})));
+  const sortRow=$('div',{class:'chips'});
+  const paintS=()=>sortRow.replaceChildren(...[['def','Порядок'],['name','Имя'],['tribe','Племя'],['skill','Навык']].map(([k,t])=>$('button',{class:'chip ghost'+(srt===k?' on':''),text:t+(srt===k&&k!=='def'?(sdir>0?' ↑':' ↓'):''),onclick:()=>{if(srt===k&&k!=='def')sdir=-sdir;else{srt=k;sdir=k==='skill'?-1:1}paintS();fill()}})));
+  paintS();
   fill();
   return $('div',{},
     $('h1',{},'Тайный Санта ',$('em',{text:'для художников'})),
     $('p',{class:'sub',text:'Участники, уровень навыка и готовность работ. Нажми на карточку, чтобы открыть анкету с картинками.'}),
     $('div',{class:'stat glass'},$('div',{class:'row'},$('b',{text:'Готово '+n+' из '+parts.length}),$('span',{class:'spacer'}),$('button',{class:'sm',text:'+ Добавить',onclick:()=>openForm()})),$('div',{class:'prog'},$('i',{style:'width:'+(parts.length?Math.round(n/parts.length*100):0)+'%'}))),
-    $('div',{class:'tools glass'},search,chips),grid);
+    $('div',{class:'tools glass'},search,chips,sortRow),grid);
 }
 
 // ---------- draw: helpers ----------

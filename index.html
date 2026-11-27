@@ -32,8 +32,8 @@ button.danger{background:transparent;color:var(--ink2);border:1px solid var(--li
 button:disabled{opacity:.5}
 .stat{padding:12px 18px;margin-bottom:14px}
 .prog{height:8px;border-radius:99px;background:#fff3;margin-top:8px;overflow:hidden}.prog i{display:block;height:100%;background:#ffd9b0;border-radius:99px;transition:width .4s}
-.tools{position:sticky;top:calc(env(safe-area-inset-top,0px) + 8px);z-index:6;padding:10px;margin-bottom:16px;display:flex;flex-direction:column;gap:8px}
-.chips{display:flex;gap:6px}
+.tools{padding:10px;margin-bottom:16px;display:flex;flex-direction:column;gap:8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{flex:1;padding:8px 10px;font-size:12px;min-height:36px;background:transparent;color:var(--cream)}
 .chip.on{background:var(--cream);color:#6b0f1a}
 .fld,.tools input,.opt input[type=text],.pair select,.glass select{font:16px 'Open Sans',sans-serif;padding:12px 16px;border-radius:18px;border:1px solid var(--glassb);background:rgba(255,255,255,.1);color:var(--cream);width:100%}
@@ -131,7 +131,7 @@ const SUPABASE_ANON_KEY="sb_publishable_nxRSziTJBkFMxBJLXh2Sbg_2Z1YcYFS";
 const $=(t,a={},...k)=>{const e=document.createElement(t);for(const x in a){if(x==='class')e.className=a[x];else if(x.startsWith('on'))e.addEventListener(x.slice(2),a[x]);else if(x==='text')e.textContent=a[x];else e.setAttribute(x,a[x])}k.flat().forEach(c=>c!=null&&c!==false&&e.append(c));return e};
 const hashPage=()=>location.hash.slice(1)==='draw'?'draw':'participants';
 let sb=null,session=null,ch=null,parts=[],draws=[],pending=null,cur=hashPage(),loadErr=null,loading=false;
-let q='',flt='all',srt='def',sdir=1,bal=true,noteTxt='',opened={},ed=null,excl=new Set(),forb=[],dv='cards';
+let q='',flt='all',tr='all',srt='def',sdir=1,bal=true,noteTxt='',opened={},ed=null,excl=new Set(),forb=[],dv='cards';
 const configured=!SUPABASE_URL.includes('YOUR-PROJECT');
 const rid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const byId=id=>parts.find(p=>p.id===id);
@@ -264,37 +264,51 @@ function card(p){
       $('button',{class:'danger sm',text:p.ready?'Снять «готово»':'Готово ✓',onclick:sp(()=>save('participants',p.id,{...p,ready:!p.ready}))})));
 }
 function pageParticipants(){
-  const n=parts.filter(p=>p.ready).length,grid=$('div',{class:'grid'});
+  const n=parts.filter(p=>p.ready).length,grid=$('div',{class:'grid'}),cnt=$('div',{class:'handle',style:'color:inherit;opacity:.8'});
   const fill=()=>{const s=q.trim().toLowerCase();
-    const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(!s||[p.name,p.handle,p.vk,p.portfolio,p.desc,p.tribe].join(' ').toLowerCase().includes(s)));
+    const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(tr==='all'||(tr==='none'?!p.tribe:p.tribe===tr))&&(!s||[p.name,p.handle,p.vk,p.portfolio,p.desc,p.tribe].join(' ').toLowerCase().includes(s)));
     if(srt!=='def'){const key=p=>srt==='name'?String(p.name||'').toLowerCase():srt==='tribe'?(TRIBES.indexOf(p.tribe)<0?99:TRIBES.indexOf(p.tribe)):(p.skill||1);
       l.sort((a,b)=>{const x=key(a),y=key(b);let c=typeof x==='string'?x.localeCompare(y,'ru'):x-y;if(!c&&srt!=='name')c=String(a.name||'').toLowerCase().localeCompare(String(b.name||'').toLowerCase(),'ru');return c*sdir})}
+    cnt.textContent='Показано: '+l.length+' из '+parts.length;
     grid.replaceChildren(...(l.length?l.map(card):[$('div',{class:'empty glass',text:parts.length?'Никого не найдено':'Пока никого нет. Нажми «Добавить».'})]))};
   const search=$('input',{type:'search',placeholder:'Поиск по имени, ID, ВК, племени, анкете',value:q});search.addEventListener('input',()=>{q=search.value;fill()});
-  const chips=$('div',{class:'chips'});
-  [['all','Все'],['ready','Готовы'],['wip','В процессе']].forEach(([k,t])=>chips.append($('button',{class:'chip ghost'+(flt===k?' on':''),text:t,onclick:e=>{flt=k;[...chips.children].forEach(c=>c.classList.remove('on'));e.currentTarget.classList.add('on');fill()}})));
-  const sortRow=$('div',{class:'chips'});
-  const paintS=()=>sortRow.replaceChildren(...[['def','Порядок'],['name','Имя'],['tribe','Племя'],['skill','Навык']].map(([k,t])=>$('button',{class:'chip ghost'+(srt===k?' on':''),text:t+(srt===k&&k!=='def'?(sdir>0?' ↑':' ↓'):''),onclick:()=>{if(srt===k&&k!=='def')sdir=-sdir;else{srt=k;sdir=k==='skill'?-1:1}paintS();fill()}})));
-  paintS();
-  fill();
+  const tribeRow=$('div',{class:'chips'});
+  const cntT=k=>k==='all'?parts.length:k==='none'?parts.filter(p=>!p.tribe).length:parts.filter(p=>p.tribe===k).length;
+  const paintT=()=>tribeRow.replaceChildren(...[['all','Все племена'],...TRIBES.map(t=>[t,t]),['none','Без племени']].filter(([k])=>k!=='none'||cntT('none')).map(([k,t])=>$('button',{class:'chip ghost'+(tr===k?' on':''),text:t+' '+cntT(k),onclick:()=>{tr=k;paintT();fill()}})));
+  const stSel=$('select',{},[['all','Все статусы'],['ready','Готовы'],['wip','В процессе']].map(([k,t])=>$('option',{value:k,text:t})));stSel.value=flt;stSel.addEventListener('change',()=>{flt=stSel.value;fill()});
+  const soSel=$('select',{},[['def','Порядок: по добавлению'],['name','По имени'],['tribe','По племени'],['skill','По навыку']].map(([k,t])=>$('option',{value:k,text:t})));soSel.value=srt;
+  const dirB=$('button',{class:'ghost sm',type:'button','aria-label':'Направление сортировки'});
+  const paintD=()=>{dirB.textContent=sdir>0?'↑':'↓';dirB.disabled=srt==='def'};
+  soSel.addEventListener('change',()=>{srt=soSel.value;sdir=srt==='skill'?-1:1;paintD();fill()});
+  dirB.addEventListener('click',()=>{sdir=-sdir;paintD();fill()});
+  const reset=$('button',{class:'ghost sm',type:'button',text:'Сбросить',onclick:()=>{q='';flt='all';tr='all';srt='def';sdir=1;render()}});
+  paintT();paintD();fill();
   return $('div',{},
     $('h1',{},'Тайный Санта ',$('em',{text:'для художников'})),
     $('p',{class:'sub',text:'Участники, уровень навыка и готовность работ. Нажми на карточку, чтобы открыть анкету с картинками.'}),
     $('div',{class:'stat glass'},$('div',{class:'row'},$('b',{text:'Готово '+n+' из '+parts.length}),$('span',{class:'spacer'}),$('button',{class:'sm',text:'+ Добавить',onclick:()=>openForm()})),$('div',{class:'prog'},$('i',{style:'width:'+(parts.length?Math.round(n/parts.length*100):0)+'%'}))),
-    $('div',{class:'tools glass'},search,chips,sortRow),grid);
+    $('div',{class:'tools glass'},search,tribeRow,$('div',{class:'frow'},stSel,soSel,dirB,reset),cnt),grid);
 }
 
 // ---------- draw: helpers ----------
 function derange(ids,sk,balance,bad){
   // один общий круг: никто не дарит себе, нет взаимных обменов (кроме случая из двух) и нет запрещённых пар
-  const n=ids.length;let best=null,bs=1e9;
-  for(let t=0;t<2000;t++){
-    const r=[...ids];for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]]}
-    if(bad.size&&r.some((x,i)=>bad.has(x+'|'+r[(i+1)%n])))continue;
-    const sc=balance?r.reduce((a,x,i)=>a+Math.abs(sk[x]-sk[r[(i+1)%n]]),0):0;
-    if(sc<bs){bs=sc;best=r;if(!balance)break}
+  // balance: низкий навык рисует низкому; рисовать «вверх» (кому-то сильнее себя) приходится как можно меньшему числу людей и на минимальную разницу
+  const n=ids.length;
+  const shuf=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+  const cost=r=>{let c=0;for(let i=0;i<n;i++){const a=r[i],b=r[(i+1)%n];if(bad.size&&bad.has(a+'|'+b))c+=1e6;if(balance){const d=sk[b]-sk[a];c+=d>0?3*d*d:-d}}return c};
+  let best=null,bc=Infinity;
+  for(let t=0;t<(balance?40:300);t++){
+    const r=shuf([...ids]);let c=cost(r);
+    if(balance||c>=1e6){
+      for(let k=0;k<1500&&c>0;k++){const i=Math.floor(Math.random()*n),j=Math.floor(Math.random()*n);if(i===j)continue;
+        [r[i],r[j]]=[r[j],r[i]];const c2=cost(r);if(c2<=c)c=c2;else[r[i],r[j]]=[r[j],r[i]]}
+    }
+    if(c<bc){bc=c;best=[...r]}
+    if(!balance&&c<1e6)break;
   }
-  return best&&best.map((g,i)=>({g,r:best[(i+1)%n]}));
+  if(!best||bc>=1e6)return null;
+  return best.map((g,i)=>({g,r:best[(i+1)%n]}));
 }
 const nm=(id,fb)=>byId(id)?byId(id).name:(fb||'—');
 function msg(pr){const r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+idText(r.handle):'')+(r.tribe?'\nПлемя: '+r.tribe:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nРеференс и пожелания: '+r.desc:'')+(r.portfolio?'\nПримеры работ: '+r.portfolio:'')}
@@ -330,7 +344,7 @@ function pairsView(P,showReady){
 }
 const viewToggle=()=>$('div',{class:'seg'},[['cards','Карточки'],['chain','Цепочка']].map(([k,t])=>$('button',{class:dv===k?'on':'',text:t,onclick:()=>{dv=k;render()}})));
 function statsOf(P){const d=P.filter(x=>x.r&&byId(x.g)&&byId(x.r));const avg=d.length?d.reduce((a,x)=>a+Math.abs((byId(x.g).skill||1)-(byId(x.r).skill||1)),0)/d.length:0;
-  return [['Пар',P.length],['Разница уровней',avg.toFixed(1)],['Взаимных',mutuals(P).size/2]]}
+  const up=d.filter(x=>(byId(x.r).skill||1)>(byId(x.g).skill||1)).length;return [['Пар',P.length],['Разница уровней',avg.toFixed(1)],['Рисуют сложнее себя',up],['Взаимных',mutuals(P).size/2]]}
 const allMsgs=P=>P.filter(x=>x.r).map(msg).join('\n\n———\n\n');
 const remind=P=>'Напоминание: работы ещё не сдали:\n'+P.filter(x=>byId(x.g)&&!byId(x.g).ready).map(x=>'• '+nm(x.g)+(byId(x.g).vk?' '+vkUrl(byId(x.g).vk):'')).join('\n');
 function details(pr){
@@ -418,7 +432,7 @@ function pageDraw(){
   const upd=()=>{cnt.textContent='Участвуют: '+act().length+' из '+parts.length};upd();
   const chips=$('div',{class:'pchips'});
   parts.forEach(p=>{const b=$('button',{class:'pchip'+(excl.has(p.id)?'':' on'),onclick:()=>{excl.has(p.id)?excl.delete(p.id):excl.add(p.id);b.classList.toggle('on',!excl.has(p.id));upd()}},ava(p.id),p.name);chips.append(b)});
-  const seg=$('div',{class:'seg'},[['По уровню',true],['Случайно',false]].map(([t,v])=>$('button',{class:bal===v?'on':'',text:t,onclick:e=>{bal=v;[...seg.children].forEach(c=>c.classList.remove('on'));e.currentTarget.classList.add('on')}})));
+  const seg=$('div',{class:'seg'},[['Честно по уровню',true],['Случайно',false]].map(([t,v])=>$('button',{class:bal===v?'on':'',text:t,onclick:e=>{bal=v;[...seg.children].forEach(c=>c.classList.remove('on'));e.currentTarget.classList.add('on')}})));
   const fa=$('select',{},act().map(p=>$('option',{value:p.id,text:p.name}))),fb2=$('select',{},act().map(p=>$('option',{value:p.id,text:p.name})));
   fb2.selectedIndex=Math.min(1,act().length-1);
   const addF=()=>{const a=fa.value,b=fb2.value;if(!a||!b||a===b){toast('Выберите двух разных участников');return}
@@ -457,7 +471,7 @@ function pageDraw(){
         $('button',{class:'ghost sm',text:'Все',onclick:()=>{excl.clear();render()}}),
         $('button',{class:'ghost sm',text:'Только с анкетой',onclick:()=>{parts.forEach(p=>{const ok=p.vk&&String(p.portfolio||'').trim()&&String(p.desc||'').trim();ok?excl.delete(p.id):excl.add(p.id)});render()}})),
       chips),
-    $('div',{class:'panel glass'},$('b',{text:'Подбор пар'}),seg,$('div',{class:'handle',style:'color:inherit;opacity:.75',text:'«По уровню»: соседи в круге с близким навыком. Сам себе никто не достанется, взаимных обменов («А → Б и Б → А») нет, кроме случая из двух участников.'})),
+    $('div',{class:'panel glass'},$('b',{text:'Подбор пар'}),seg,$('div',{class:'handle',style:'color:inherit;opacity:.75',text:'«Честно по уровню»: участники с низким навыком рисуют друг другу, а рисовать кому-то сильнее себя приходится как можно меньшему числу людей и с минимальной разницей. Сам себе никто не достанется, взаимных обменов нет, кроме случая из двух участников.'})),
     $('div',{class:'panel glass'},$('b',{text:'Запретить пары'}),$('div',{class:'handle',style:'color:inherit;opacity:.75',text:'Например, друзья или те, кто уже дарил друг другу. Запрет работает в обе стороны.'}),
       $('div',{class:'frow'},fa,fb2,$('button',{class:'ghost sm',text:'Запретить',onclick:addF})),fchips),
     $('div',{class:'panel glass'},note,go),

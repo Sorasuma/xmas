@@ -162,9 +162,9 @@ function block(title,text){const t=String(text||'').trim();if(!t)return null;con
 // ---------- data ----------
 function hint(e){
   const m=String((e&&e.message)||e||''),c=e&&e.code;
-  if(c==='PGRST204'||/column .*(vk|portfolio|schema cache)/i.test(m))return 'Не хватает колонки в таблице. Выполните файл setup.sql в SQL Editor в Supabase.';
-  if(c==='42P01'||c==='PGRST205'||/does not exist/i.test(m))return 'Таблицы не найдены. Выполните файл setup.sql в SQL Editor в Supabase.';
-  if(c==='42501'||/permission denied|row-level security|JWT/i.test(m))return 'Нет доступа к данным. Выполните setup.sql, затем выйдите и войдите снова. Технический текст: '+(c?c+' ':'')+m;
+  if(c==='PGRST204'||/column .*(vk|portfolio|tribe|schema cache)/i.test(m))return 'Не хватает колонки в таблице. Выполните SQL из инструкции в SQL Editor в Supabase.';
+  if(c==='42P01'||c==='PGRST205'||/does not exist/i.test(m))return 'Таблицы не найдены. Выполните SQL из инструкции в SQL Editor в Supabase.';
+  if(c==='42501'||/permission denied|row-level security|JWT/i.test(m))return 'Нет доступа к данным. Выполните SQL, затем выйдите и войдите снова. Технический текст: '+(c?c+' ':'')+m;
   if(/Invalid API key|apikey/i.test(m))return 'Неверный ключ SUPABASE_ANON_KEY.';
   if(/Failed to fetch|NetworkError|Load failed/i.test(m))return 'Нет соединения с Supabase. Проверьте интернет.';
   return 'Ошибка: '+m;
@@ -204,7 +204,7 @@ function dlgShow(nodes){const d=document.getElementById('dlg');d.replaceChildren
 function openProfile(p){
   const v=vkUrl(p.vk),empty=!String(p.portfolio||'').trim()&&!String(p.desc||'').trim();
   const d=dlgShow([
-    $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),$('span',{class:'spacer'}),stars(p.skill)),
+    $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),p.tribe?$('span',{class:'pill off',text:p.tribe}):null,$('span',{class:'spacer'}),stars(p.skill)),
     $('h2',{text:p.name}),
     $('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?ext(v,'Профиль ВК ↗'):null),
     block('Примеры работ',p.portfolio),block('Референс персонажа',p.desc),
@@ -213,7 +213,7 @@ function openProfile(p){
     $('div',{class:'row'},$('button',{class:'wine',text:'Изменить',onclick:()=>openForm(p)}),$('button',{class:'danger',text:'Закрыть',onclick:()=>d.close()}))]);
 }
 function openForm(p){
-  const v={name:'',handle:'',vk:'',portfolio:'',skill:2,desc:'',ready:false,work:'',tribe:'',...(p||{})};
+  const v={name:'',handle:'',vk:'',portfolio:'',skill:2,desc:'',ready:false,work:'',tribe:'',...(p||{})};let skill=v.skill;
   const name=$('input',{type:'text',value:v.name,placeholder:'Имя',maxlength:60});
   const handle=$('input',{type:'text',value:v.handle,placeholder:'@nickname или ID',maxlength:60});
   const vk=$('input',{type:'text',value:v.vk||'',placeholder:'vk.com/nickname',maxlength:120});
@@ -228,7 +228,7 @@ function openForm(p){
   const err=$('div',{class:'handle miss'});
   const hint2=t=>$('div',{class:'handle',text:t});
   const d=dlgShow([$('h2',{text:p?'Изменить анкету':'Новая анкета'}),
-$('label',{text:'Имя'},name),$('label',{text:'ID / ник'},handle),$('label',{text:'Племя'},tribe),
+    $('label',{text:'Имя'},name),$('label',{text:'ID / ник'},handle),$('label',{text:'Племя'},tribe),
     $('label',{text:'1. Страница ВКонтакте'},vk),hint2('Проверьте, что у вас открыты личные сообщения или вас можно добавить в беседу.'),
     $('label',{text:'2. Примеры работ'},port),hint2('Несколько рисунков, чтобы организаторы подобрали подходящего Санту. Ссылки на картинки покажутся как картинки.'),
     $('label',{text:'3. Референс персонажа'},desc),hint2('Готовый арт, референс или модель. По желанию добавьте описание характера и предпочтений.'),
@@ -264,7 +264,7 @@ function pageParticipants(){
   const fill=()=>{const s=q.trim().toLowerCase();
     const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(!s||[p.name,p.handle,p.vk,p.portfolio,p.desc,p.tribe].join(' ').toLowerCase().includes(s)));
     grid.replaceChildren(...(l.length?l.map(card):[$('div',{class:'empty glass',text:parts.length?'Никого не найдено':'Пока никого нет. Нажми «Добавить».'})]))};
-  const search=$('input',{type:'search',placeholder:'Поиск по имени, ID, ВК, анкете',value:q});search.addEventListener('input',()=>{q=search.value;fill()});
+  const search=$('input',{type:'search',placeholder:'Поиск по имени, ID, ВК, племени, анкете',value:q});search.addEventListener('input',()=>{q=search.value;fill()});
   const chips=$('div',{class:'chips'});
   [['all','Все'],['ready','Готовы'],['wip','В процессе']].forEach(([k,t])=>chips.append($('button',{class:'chip ghost'+(flt===k?' on':''),text:t,onclick:e=>{flt=k;[...chips.children].forEach(c=>c.classList.remove('on'));e.currentTarget.classList.add('on');fill()}})));
   fill();

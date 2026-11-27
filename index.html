@@ -63,7 +63,7 @@ dialog::backdrop{background:#1a0306aa;backdrop-filter:blur(8px)}
 dialog[open]{animation:up .25s ease}@keyframes up{from{transform:translateY(30px);opacity:0}}
 .sheet{background:var(--card);border-radius:32px;padding:22px;display:flex;flex-direction:column;gap:12px;max-height:90vh;overflow:auto}
 label{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink2);display:flex;flex-direction:column;gap:6px}
-.sheet input[type=text],.sheet input[type=url],.sheet textarea{font:16px 'Open Sans',sans-serif;padding:12px 16px;border-radius:18px;border:1px solid var(--line);background:transparent;color:var(--ink);width:100%}
+.sheet input[type=text],.sheet input[type=url],.sheet textarea,.sheet select{font:16px 'Open Sans',sans-serif;padding:12px 16px;border-radius:18px;border:1px solid var(--line);background:transparent;color:var(--ink);width:100%}
 textarea{min-height:90px;resize:vertical}
 input:focus,textarea:focus,select:focus{outline:2px solid #ffd9b0;outline-offset:1px}
 .starpick{display:flex;gap:4px}
@@ -135,6 +135,7 @@ let q='',flt='all',bal=true,noteTxt='',opened={},ed=null,excl=new Set(),forb=[],
 const configured=!SUPABASE_URL.includes('YOUR-PROJECT');
 const rid=()=>'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const byId=id=>parts.find(p=>p.id===id);
+const TRIBES=['Север','Река','Ветер'];
 const sp=f=>e=>{e.stopPropagation();f(e)};
 const ext=(u,t)=>$('a',{href:u,target:'_blank',rel:'noopener noreferrer',text:t});
 
@@ -182,7 +183,7 @@ async function load(){
 async function save(coll,id,data){
   try{let r;
     if(coll==='participants'){
-      const row={name:data.name,handle:data.handle,vk:data.vk,portfolio:data.portfolio,skill:data.skill,descr:data.desc,ready:data.ready,work:data.work};
+      const row={name:data.name,handle:data.handle,vk:data.vk,portfolio:data.portfolio,skill:data.skill,descr:data.desc,ready:data.ready,work:data.work,tribe:data.tribe||null};
       r=byId(id)?await sb.from('participants').update(row).eq('id',id):await sb.from('participants').insert(row);
     }else{
       const row={note:data.note,pairs:data.pairs};
@@ -212,10 +213,11 @@ function openProfile(p){
     $('div',{class:'row'},$('button',{class:'wine',text:'Изменить',onclick:()=>openForm(p)}),$('button',{class:'danger',text:'Закрыть',onclick:()=>d.close()}))]);
 }
 function openForm(p){
-  const v={name:'',handle:'',vk:'',portfolio:'',skill:2,desc:'',ready:false,work:'',...(p||{})};let skill=v.skill;
+  const v={name:'',handle:'',vk:'',portfolio:'',skill:2,desc:'',ready:false,work:'',tribe:'',...(p||{})};
   const name=$('input',{type:'text',value:v.name,placeholder:'Имя',maxlength:60});
   const handle=$('input',{type:'text',value:v.handle,placeholder:'@nickname или ID',maxlength:60});
   const vk=$('input',{type:'text',value:v.vk||'',placeholder:'vk.com/nickname',maxlength:120});
+  const tribe=$('select',{},$('option',{value:'',text:'— выберите племя —'}),TRIBES.map(t=>$('option',{value:t,text:t})));tribe.value=v.tribe||'';
   const port=$('textarea',{placeholder:'Ссылки на 2–3 рисунка, каждая с новой строки'});port.value=v.portfolio||'';
   const desc=$('textarea',{placeholder:'Ссылки на референс или арты персонажа, пара слов о характере и предпочтениях'});desc.value=v.desc||'';
   const ready=$('input',{type:'checkbox'});ready.checked=!!v.ready;
@@ -226,7 +228,7 @@ function openForm(p){
   const err=$('div',{class:'handle miss'});
   const hint2=t=>$('div',{class:'handle',text:t});
   const d=dlgShow([$('h2',{text:p?'Изменить анкету':'Новая анкета'}),
-    $('label',{text:'Имя'},name),$('label',{text:'ID / ник'},handle),
+$('label',{text:'Имя'},name),$('label',{text:'ID / ник'},handle),$('label',{text:'Племя'},tribe),
     $('label',{text:'1. Страница ВКонтакте'},vk),hint2('Проверьте, что у вас открыты личные сообщения или вас можно добавить в беседу.'),
     $('label',{text:'2. Примеры работ'},port),hint2('Несколько рисунков, чтобы организаторы подобрали подходящего Санту. Ссылки на картинки покажутся как картинки.'),
     $('label',{text:'3. Референс персонажа'},desc),hint2('Готовый арт, референс или модель. По желанию добавьте описание характера и предпочтений.'),
@@ -235,9 +237,10 @@ function openForm(p){
     $('div',{class:'row'},
       $('button',{class:'wine',text:'Сохранить',onclick:async()=>{
         if(!name.value.trim()){err.textContent='Укажи имя';return}
+        if(!tribe.value){err.textContent='Выбери племя';return}
         if(!vk.value.trim()){err.textContent='Укажи ссылку на ВК, это нужно для связи';return}
         if(work.value&&!/^https:\/\//.test(work.value.trim())){err.textContent='Ссылка на работу должна начинаться с https://';return}
-        const ok=await save('participants',p?p.id:rid(),{name:name.value.trim(),handle:handle.value.trim(),vk:vk.value.trim(),portfolio:port.value.trim(),skill,desc:desc.value.trim(),ready:ready.checked,work:work.value.trim()});
+        const ok=await save('participants',p?p.id:rid(),{name:name.value.trim(),handle:handle.value.trim(),vk:vk.value.trim(),tribe:tribe.value,portfolio:port.value.trim(),skill,desc:desc.value.trim(),ready:ready.checked,work:work.value.trim()});
         if(ok)d.close();else err.textContent='Не удалось сохранить, введённое не потеряно. Попробуйте ещё раз.'}}),
       $('button',{class:'danger',text:'Отмена',onclick:()=>d.close()}),
       p&&$('button',{class:'danger',text:'Удалить',onclick:async()=>{if(confirm('Удалить участника?')&&await del('participants',p.id))d.close()}}))]);
@@ -250,7 +253,7 @@ function card(p){
   const miss=[!p.vk&&'ВК',!String(p.portfolio||'').trim()&&'примеры работ',!String(p.desc||'').trim()&&'референс'].filter(Boolean);
   return $('div',{class:'card',onclick:()=>openProfile(p)},
     cover?img(cover,'cover',true):null,
-    $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),$('span',{class:'spacer'}),stars(p.skill)),
+    $('div',{class:'row'},$('span',{class:'pill'+(p.ready?'':' off'),text:p.ready?'Работа готова':'В процессе'}),p.tribe?$('span',{class:'pill off',text:p.tribe}):null,$('span',{class:'spacer'}),stars(p.skill)),
     $('div',{},$('h3',{text:p.name}),$('div',{class:'handle'},p.handle||'',p.handle&&v?' · ':null,v?$('a',{href:v,target:'_blank',rel:'noopener noreferrer',text:'ВК ↗',onclick:e=>e.stopPropagation()}):null)),
     miss.length?$('div',{class:'handle miss',text:'Не хватает: '+miss.join(', ')}):null,
     $('div',{class:'row'},$('button',{class:'wine sm',text:'Изменить',onclick:sp(()=>openForm(p))}),
@@ -259,7 +262,7 @@ function card(p){
 function pageParticipants(){
   const n=parts.filter(p=>p.ready).length,grid=$('div',{class:'grid'});
   const fill=()=>{const s=q.trim().toLowerCase();
-    const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(!s||[p.name,p.handle,p.vk,p.portfolio,p.desc].join(' ').toLowerCase().includes(s)));
+    const l=parts.filter(p=>(flt==='all'||(flt==='ready'?p.ready:!p.ready))&&(!s||[p.name,p.handle,p.vk,p.portfolio,p.desc,p.tribe].join(' ').toLowerCase().includes(s)));
     grid.replaceChildren(...(l.length?l.map(card):[$('div',{class:'empty glass',text:parts.length?'Никого не найдено':'Пока никого нет. Нажми «Добавить».'})]))};
   const search=$('input',{type:'search',placeholder:'Поиск по имени, ID, ВК, анкете',value:q});search.addEventListener('input',()=>{q=search.value;fill()});
   const chips=$('div',{class:'chips'});
@@ -285,7 +288,7 @@ function derange(ids,sk,balance,bad){
   return best&&best.map((g,i)=>({g,r:best[(i+1)%n]}));
 }
 const nm=(id,fb)=>byId(id)?byId(id).name:(fb||'—');
-function msg(pr){const r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+r.handle:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nРеференс и пожелания: '+r.desc:'')+(r.portfolio?'\nПримеры работ: '+r.portfolio:'')}
+function msg(pr){const r=byId(pr.r)||{};return 'Привет, '+nm(pr.g,pr.gn)+'! Ты тайный Санта для: '+nm(pr.r,pr.rn)+'\nУровень: '+'★'.repeat(r.skill||1)+(r.handle?'\nID: '+r.handle:'')+(r.tribe?'\nПлемя: '+r.tribe:'')+(r.vk?'\nВК: '+vkUrl(r.vk):'')+(r.desc?'\nРеференс и пожелания: '+r.desc:'')+(r.portfolio?'\nПримеры работ: '+r.portfolio:'')}
 const listText=P=>P.map(x=>nm(x.g,x.gn)+' → '+(x.r?nm(x.r,x.rn):'без пары')).join('\n');
 const mutuals=P=>new Set(P.filter(x=>x.r&&P.some(y=>y.g===x.r&&y.r===x.g)).map(x=>x.g));
 function ava(id,fb){
